@@ -285,10 +285,10 @@ Supports Remootio 1 and Remootio 2 devices.
 - **Run HA:** `./script/develop`
 
 ## Current Status
-- [ ] WebSocket API client with typed models
-- [ ] Config flow (host, API key, API secret)
-- [ ] Coordinator (WebSocket push-based)
-- [ ] Cover platform (garage door)
-- [ ] Tests
-- [ ] Options flow for credential updates
+- [x] WebSocket API client with typed models
+- [x] Config flow (host, API key, API secret)
+- [x] Coordinator (WebSocket push-based)
+- [x] Cover platform (garage door)
+- [ ] Tests (written, not yet run in devcontainer)
+- [x] Options flow for credential updates
 - [ ] Diagnostics support
