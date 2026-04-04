@@ -1,8 +1,7 @@
 {
-  "name": "HA ha_integration_domain Dev Container",
+  "name": "HA remootio Dev Container",
   "image": "mcr.microsoft.com/devcontainers/python:3.13",
   "postCreateCommand": "bash .devcontainer/setup-shell.sh && bash .devcontainer/setup-git.sh && script/setup/setup",
-  "postAttachCommand": "bash .devcontainer/post-attach.sh",
   "containerEnv": {
     // Home Assistant version to install in the devcontainer.
     // Uncomment and set a specific version if needed (e.g., "2025.12.3").
@@ -133,7 +132,7 @@
   "mounts": [
     // Mount host gitconfig for local development (ignored in Codespaces)
     // In Codespaces, GitHub automatically configures Git with your account
-    "source=${localEnv:HOME}${localEnv:USERPROFILE}/.gitconfig,target=/home/vscode/.gitconfig.host,type=bind,consistency=cached,readonly"
+    "source=${localEnv:USERPROFILE}/.gitconfig,target=/home/vscode/.gitconfig.host,type=bind,consistency=cached,readonly"
   ],
   "remoteUser": "vscode"
 }

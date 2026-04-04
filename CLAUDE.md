@@ -1,36 +1,41 @@
-# Claude Code Instructions
+# Integration: Remootio
 
-This repository uses a shared AI agent instruction system. **All instructions are in [`AGENTS.md`](AGENTS.md).**
+## What This Does
+Integrates Remootio smart garage door openers with Home Assistant via local WebSocket API.
+Exposes: cover entity (garage door) with open/close/stop and real-time state updates.
 
-Read `AGENTS.md` completely before starting any work. It contains:
+## API Details
+- Protocol: WebSocket (local network, not cloud)
+- Default port: 8080 (ws://<host>:8080/)
+- Auth: API key + API secret (obtained from Remootio mobile app)
+- Encryption: AES-128-CBC + HMAC-SHA256
+- Docs: https://documents.remootio.com/docs/WebsocketsAPI.pdf
+- iot_class: local_push
 
-- Project overview and integration identifiers
-- Package structure and architectural rules
-- Code style, validation commands, and quality expectations
-- Home Assistant patterns (config flow, coordinator, entities, services)
-- Error recovery strategy and breaking change policy
-- Workflow rules (scope management, translations, documentation)
+## Entities
+| Platform | Entity         | Source                    |
+|----------|---------------|---------------------------|
+| cover    | Garage Door   | WebSocket state/events    |
+
+## Known Issues / Gotchas
+- WebSocket API uses encrypted frames (AES-128-CBC) — not plain JSON
+- API key and secret must be enabled in the Remootio app settings
+- Device must be on same local network (no cloud relay)
+- The API has a session-based auth flow (AUTH frame exchange)
 
 ## Quick Reference
-
-- **Domain:** `ha_integration_domain`
-- **Title:** Integration Blueprint
-- **Class prefix:** `IntegrationBlueprint`
-- **Main code:** `custom_components/ha_integration_domain/`
+- **Domain:** `remootio`
+- **Class prefix:** `Remootio`
+- **Main code:** `custom_components/remootio/`
 - **Validate:** `script/check` (type-check + lint + spell)
 - **Test:** `script/test`
 - **Run HA:** `./script/develop`
 
-## Path-Specific Instructions
-
-Additional domain-specific guidance is available in `.github/instructions/*.instructions.md`.
-These files use `applyTo` globs to indicate which files they cover.
-Consult the relevant instruction file when working on specific file types:
-
-- `python.instructions.md` — Python style, async patterns, HA imports
-- `entities.instructions.md` — Entity platform patterns, inheritance
-- `config_flow.instructions.md` — Config flow, reauth, discovery
-- `coordinator.instructions.md` — DataUpdateCoordinator patterns
-- `api.instructions.md` — API client, exception hierarchy
-- `services_yaml.instructions.md` — Service action definitions
-- `translations.instructions.md` — Translation file structure
+## Current Status
+- [ ] WebSocket API client with typed models
+- [ ] Config flow (host, API key, API secret)
+- [ ] Coordinator (WebSocket push-based)
+- [ ] Cover platform (garage door)
+- [ ] Tests
+- [ ] Options flow for credential updates
+- [ ] Diagnostics support
