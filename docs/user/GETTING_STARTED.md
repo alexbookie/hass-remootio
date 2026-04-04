@@ -1,12 +1,23 @@
 # Getting Started with Remootio
 
-This guide will help you install and set up the Remootio custom integration for Home Assistant.
+This guide covers installation and setup of the Remootio integration for Home Assistant.
 
 ## Prerequisites
 
-- Home Assistant 2025.7.0 or newer
+- Home Assistant 2025.12.3 or newer
 - HACS (Home Assistant Community Store) installed
-- Network connectivity to [external service/device]
+- Remootio device (Remootio 1 or Remootio 2) with firmware 2.21+
+- API Auth Key and API Secret Key from the Remootio mobile app
+- Device on the same local network as Home Assistant
+
+## Getting Your API Keys
+
+1. Open the Remootio app on your phone
+2. Select your device
+3. Go to **Settings** > **API**
+4. Enable the API if not already enabled
+5. Copy the **API Auth Key** (64-character hex string)
+6. Copy the **API Secret Key** (64-character hex string)
 
 ## Installation
 
@@ -26,147 +37,65 @@ This guide will help you install and set up the Remootio custom integration for 
 ### Manual Installation
 
 1. Download the latest release from the [releases page](https://github.com/alexbookie/hass-remootio/releases)
-2. Extract the `remootio` folder from the archive
-3. Copy it to `custom_components/remootio/` in your Home Assistant configuration directory
-4. Restart Home Assistant
+2. Copy `custom_components/remootio/` to your Home Assistant `custom_components/` directory
+3. Restart Home Assistant
 
-## Initial Setup
+## Setup
 
-After installation, add the integration:
-
-1. Go to **Settings** → **Devices & Services**
+1. Go to **Settings** > **Devices & Services**
 2. Click **+ Add Integration**
 3. Search for "Remootio"
-4. Follow the configuration steps:
+4. Enter:
+   - **Host**: IP address or hostname of your Remootio device
+   - **API Auth Key**: 64-character hex key from the Remootio app
+   - **API Secret Key**: 64-character hex key from the Remootio app
+5. Click **Submit**
 
-### Step 1: Connection Information
-
-Enter the required connection details:
-
-- **Host/IP Address:** The hostname or IP address of your device/service
-- **API Key/Token:** Your authentication credentials (if applicable)
-- **Port:** Connection port (default: 8080)
-
-Click **Submit** to test the connection.
-
-### Step 2: Configuration Options
-
-Configure optional settings:
-
-- **Update Interval:** How often to poll for updates (default: 5 minutes)
-- **Name:** Friendly name for this integration instance
-
-Click **Submit** to complete setup.
+The integration connects to your device via WebSocket, authenticates, and creates a garage door cover entity.
 
 ## What Gets Created
 
-After successful setup, the integration creates:
+### Device
 
-### Devices
-
-- **Device Name:** Main device representing your connected service/hardware
-  - Model information
-  - Software version
-  - Configuration URL (link to device web interface)
+- **Remootio {serial}**: Your garage door opener
+  - Model: remootio-1 or remootio-2
+  - Software version: API version
 
 ### Entities
 
-The following entities are automatically created:
+- **Cover (Garage Door)**: Open, close, and stop your garage door
+  - Shows real-time state: Open, Closed, Opening, Closing
+  - Buttons dynamically change based on state (e.g. Stop only shown while moving)
 
-#### Sensors
+## Important Notes
 
-- `sensor.<device_name>_<sensor_name>` - Descriptive sensor measurements
-- More sensors as applicable to your setup
+- **Single connection**: Remootio supports only one WebSocket connection at a time. While Home Assistant is connected, the Remootio app cannot control via WiFi (Bluetooth still works).
+- **Local only**: The integration communicates directly with the device on your local network. No cloud or internet connection is required.
+- **Sensor required for directional control**: If no door sensor is installed, only the toggle (trigger) command is available. With a sensor, separate open/close commands are used.
 
-#### Binary Sensors
-
-- `binary_sensor.<device_name>_<sensor_name>` - On/off status indicators
-
-#### Switches
-
-- `switch.<device_name>_<switch_name>` - Controllable on/off switches
-
-#### Other Platforms
-
-Additional entities may be created depending on your device capabilities.
-
-## First Steps
-
-### Dashboard Cards
-
-Add entities to your dashboard:
-
-1. Go to your dashboard
-2. Click **Edit Dashboard** → **Add Card**
-3. Choose card type (e.g., "Entities", "Glance")
-4. Select entities from "Remootio"
-
-Example entities card:
+## Dashboard Example
 
 ```yaml
 type: entities
-title: Remootio
+title: Garage Door
 entities:
-  - sensor.device_name_sensor
-  - binary_sensor.device_name_connectivity
-  - switch.device_name_switch
-```
-
-### Automations
-
-Use the integration in automations:
-
-**Example - Trigger on sensor change:**
-
-```yaml
-automation:
-  - alias: "React to sensor value"
-    trigger:
-      - trigger: state
-        entity_id: sensor.device_name_sensor
-    action:
-      - action: notify.notify
-        data:
-          message: "Sensor changed to {{ trigger.to_state.state }}"
-```
-
-**Example - Control switch based on time:**
-
-```yaml
-automation:
-  - alias: "Turn on in morning"
-    trigger:
-      - trigger: time
-        at: "07:00:00"
-    action:
-      - action: switch.turn_on
-        target:
-          entity_id: switch.device_name_switch
+  - entity: cover.remootio_abc123def456_cover
 ```
 
 ## Troubleshooting
 
 ### Connection Failed
 
-If setup fails with connection errors:
+- Verify the host IP address is correct and the device is reachable
+- Ensure no other WebSocket client is connected (close the Remootio app's WiFi connection)
+- Check that the API is enabled in the Remootio app
 
-1. Verify the host/IP address is correct and reachable
-2. Check that the API key/token is valid
-3. Ensure no firewall is blocking the connection
-4. Check Home Assistant logs for detailed error messages
+### Authentication Error
 
-### Entities Not Updating
-
-If entities show "Unavailable" or don't update:
-
-1. Check that the device/service is online
-2. Verify API credentials haven't expired
-3. Review logs: **Settings** → **System** → **Logs**
-4. Try reloading the integration
+- Verify both API keys are exactly 64 characters and copied correctly
+- Re-enable the API in the Remootio app to generate new keys if needed
 
 ### Debug Logging
-
-Enable debug logging to troubleshoot issues:
 
 ```yaml
 logger:
@@ -175,17 +104,7 @@ logger:
     custom_components.remootio: debug
 ```
 
-Add this to `configuration.yaml`, restart, and reproduce the issue. Check logs for detailed information.
-
 ## Next Steps
 
-- See [CONFIGURATION.md](./CONFIGURATION.md) for detailed configuration options
-- See [EXAMPLES.md](./EXAMPLES.md) for more automation examples
+- See [CONFIGURATION.md](./CONFIGURATION.md) for options and credential management
 - Report issues at [GitHub Issues](https://github.com/alexbookie/hass-remootio/issues)
-
-## Support
-
-For help and discussion:
-
-- [GitHub Discussions](https://github.com/alexbookie/hass-remootio/discussions)
-- [Home Assistant Community Forum](https://community.home-assistant.io/)

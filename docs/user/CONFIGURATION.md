@@ -1,249 +1,89 @@
 # Configuration Reference
 
-This document describes all configuration options and settings available in the Remootio custom integration.
+This document describes all configuration options for the Remootio integration.
 
-## Integration Configuration
-
-### Initial Setup Options
+## Initial Setup
 
 These options are configured during initial setup via the Home Assistant UI.
 
-#### Connection Settings
+| Option | Type | Required | Description |
+|--------|------|----------|-------------|
+| **Host** | string | Yes | IP address or hostname of the Remootio device |
+| **API Auth Key** | string | Yes | 64-character hex authentication key from the Remootio app |
+| **API Secret Key** | string | Yes | 64-character hex secret key from the Remootio app |
 
-| Option | Type | Required | Default | Description |
-|--------|------|----------|---------|-------------|
-| **Host** | string | Yes | - | Hostname or IP address of the device/service |
-| **Port** | integer | No | 8080 | Connection port |
-| **API Key** | string | Yes* | - | Authentication key or token |
-| **Use SSL** | boolean | No | false | Enable HTTPS connection |
+## Options Flow
 
-*Required if the device/service requires authentication.
+After setup, you can update API credentials:
 
-#### Update Settings
-
-| Option | Type | Required | Default | Description |
-|--------|------|----------|---------|-------------|
-| **Update Interval** | integer (seconds) | No | 300 | How often to poll for updates (minimum: 30 seconds) |
-| **Name** | string | No | "Device" | Friendly name for the integration instance |
-
-### Options Flow (Reconfiguration)
-
-After initial setup, you can modify settings:
-
-1. Go to **Settings** → **Devices & Services**
+1. Go to **Settings** > **Devices & Services**
 2. Find "Remootio"
 3. Click **Configure**
-4. Modify settings
+4. Enter new API Auth Key and/or API Secret Key
 5. Click **Submit**
 
-**Available options:**
+The integration will validate the new credentials and reload.
 
-- Update interval
-- Name/identifier
-- Connection timeout
-- Additional features (device-specific)
+## Reconfiguration
 
-## Entity Configuration
+To change the host address or all credentials:
 
-### Entity Customization
-
-Customize entities via the UI or `configuration.yaml`:
-
-#### Via Home Assistant UI
-
-1. Go to **Settings** → **Devices & Services** → **Entities**
-2. Find and click the entity
-3. Click the settings icon
-4. Modify:
-   - Entity ID
-   - Name
-   - Icon
-   - Device class (for applicable entities)
-   - Area assignment
-
-#### Via configuration.yaml
-
-```yaml
-homeassistant:
-  customize:
-    sensor.device_name_sensor:
-      friendly_name: "Custom Sensor Name"
-      icon: mdi:custom-icon
-      unit_of_measurement: "units"
-```
-
-### Disabling Entities
-
-If you don't need certain entities:
-
-1. Go to **Settings** → **Devices & Services** → **Entities**
-2. Find the entity
-3. Click it, then click **Settings** icon
-4. Toggle **Enable entity** off
-
-Disabled entities won't update or consume resources.
-
-## Services
-
-The integration provides the following services:
-
-### `remootio.example_service`
-
-Execute an example service action on the device.
-
-**Service data:**
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `entity_id` | string or list | No | Target entity/entities (if omitted, targets all) |
-| `parameter` | string | Yes | Service-specific parameter |
-| `value` | integer | No | Numeric value for the action |
-
-**Example:**
-
-```yaml
-service: remootio.example_service
-target:
-  entity_id: switch.device_name_switch
-data:
-  parameter: "setting_name"
-  value: 42
-```
-
-### Using Services in Automations
-
-```yaml
-automation:
-  - alias: "Call service at sunset"
-    trigger:
-      - trigger: sun
-        event: sunset
-    action:
-      - action: remootio.example_service
-        target:
-          entity_id: switch.device_name_switch
-        data:
-          parameter: "mode"
-          value: 1
-```
-
-## Advanced Configuration
-
-### Multiple Instances
-
-You can add multiple instances of this integration for different devices:
-
-1. Go to **Settings** → **Devices & Services**
-2. Click **+ Add Integration**
-3. Search for "Remootio"
-4. Configure with different connection details
-
-Each instance creates separate entities with unique entity IDs.
-
-### Network Configuration
-
-If the device is on a different network or behind a firewall:
-
-- Ensure ports are open (default: 8080)
-- Configure port forwarding if needed
-- Consider VPN for remote access
-- Some devices may require static IP addresses
-
-### Polling Behavior
-
-The integration uses polling to fetch updates:
-
-- **Minimum interval:** 30 seconds (prevents overloading the device)
-- **Recommended interval:** 5 minutes (default)
-- **Longer intervals:** Save resources but reduce responsiveness
-
-Adjust based on your needs:
-
-- Real-time monitoring: 30-60 seconds
-- Regular updates: 5 minutes
-- Slow-changing values: 15-30 minutes
-
-## Diagnostic Data
-
-The integration provides diagnostic data for troubleshooting:
-
-1. Go to **Settings** → **Devices & Services**
+1. Go to **Settings** > **Devices & Services**
 2. Find "Remootio"
-3. Click on the device
-4. Click **Download Diagnostics**
+3. Click the three dots menu > **Reconfigure**
+4. Update host and/or credentials
+5. Click **Submit**
 
-Diagnostic data includes:
+## Reauthentication
 
-- Connection status
-- Last update timestamp
-- API response data
-- Entity states
-- Error history
+If credentials become invalid, Home Assistant will prompt automatically:
 
-**Privacy note:** Diagnostic data may contain sensitive information. Review before sharing.
+1. Look for **"Action Required"** on the integration card
+2. Click **Reconfigure**
+3. Enter updated API keys
+4. Click **Submit**
 
-## Blueprints
+## Cover Entity Behavior
 
-The integration works with Home Assistant Blueprints for reusable automations:
+The garage door cover entity shows dynamic buttons based on state:
 
-### Example Blueprint
+| Door State | Available Actions | Notes |
+|-----------|-------------------|-------|
+| Closed | Open | Door is fully down |
+| Open | Close | Door is not fully down (includes partially open) |
+| Opening | Stop | Brief transitional state as door lifts |
+| Closing | Stop | Shown until door reaches fully closed |
+| Unknown | Open, Close | No sensor installed or initial state |
+
+### State Details
+
+- **Closed**: The door sensor confirms the door is fully down
+- **Open**: The door sensor reads "not closed" — this includes fully open, partially open, and stopped mid-travel
+- **Opening**: Inferred when the relay triggers from a closed state (very brief — sensor flips to "open" almost immediately)
+- **Closing**: Inferred when the relay triggers from an open state (shown until door reaches bottom)
+- **Stop**: Triggers the relay while the door is moving, which stops the motor
+
+### Without a Door Sensor
+
+If no sensor is installed on the Remootio device, the integration uses the TRIGGER command (relay toggle) for all actions. The door state will show as Unknown since there's no sensor feedback.
+
+## Network Requirements
+
+- Remootio uses a local WebSocket connection on port 8080
+- The device must be on the same network as Home Assistant
+- No cloud or internet connection is required
+- Only one WebSocket connection is supported at a time
+
+## Debug Logging
 
 ```yaml
-blueprint:
-  name: Remootio Alert
-  description: Send notification when sensor exceeds threshold
-  domain: automation
-  input:
-    sensor_entity:
-      name: Sensor
-      selector:
-        entity:
-          domain: sensor
-          integration: remootio
-    threshold:
-      name: Threshold
-      selector:
-        number:
-          min: 0
-          max: 100
-
-trigger:
-  - trigger: numeric_state
-    entity_id: !input sensor_entity
-    above: !input threshold
-
-action:
-  - action: notify.notify
-    data:
-      message: "Sensor exceeded threshold!"
+logger:
+  default: info
+  logs:
+    custom_components.remootio: debug
 ```
-
-## Configuration Examples
-
-See [EXAMPLES.md](./EXAMPLES.md) for complete automation and dashboard examples.
-
-## Troubleshooting Configuration
-
-### Config Entry Fails to Load
-
-If the integration fails to load after configuration:
-
-1. Check Home Assistant logs for errors
-2. Verify connection details are correct
-3. Test connectivity from Home Assistant to the device
-4. Try removing and re-adding the integration
-
-### Options Don't Save
-
-If configuration changes aren't persisted:
-
-1. Check for validation errors in the UI
-2. Ensure values are within allowed ranges
-3. Review logs for detailed error messages
-4. Try restarting Home Assistant
 
 ## Related Documentation
 
 - [Getting Started](./GETTING_STARTED.md) - Installation and initial setup
-- [Examples](./EXAMPLES.md) - Automation and dashboard examples
 - [GitHub Issues](https://github.com/alexbookie/hass-remootio/issues) - Report problems
