@@ -31,7 +31,6 @@ class RemootioCover(CoordinatorEntity[RemootioCoordinator], CoverEntity):
     _attr_device_class = CoverDeviceClass.GARAGE
     _attr_has_entity_name = True
     _attr_name = None
-    _attr_supported_features = CoverEntityFeature.OPEN | CoverEntityFeature.CLOSE | CoverEntityFeature.STOP
 
     def __init__(self, coordinator: RemootioCoordinator) -> None:  # noqa: D107
         super().__init__(coordinator)
@@ -46,6 +45,19 @@ class RemootioCover(CoordinatorEntity[RemootioCoordinator], CoverEntity):
             model=device.remootio_version,
             sw_version=f"API v{device.api_version}",
         )
+
+    @property
+    def supported_features(self) -> CoverEntityFeature:
+        """Return supported features based on current state."""
+        state = self.coordinator.gate_state
+        if state in (DerivedState.OPENING, DerivedState.CLOSING):
+            return CoverEntityFeature.STOP
+        if state == GateState.CLOSED:
+            return CoverEntityFeature.OPEN
+        if state == GateState.OPEN:
+            return CoverEntityFeature.CLOSE
+        # Unknown / no sensor — offer both directions
+        return CoverEntityFeature.OPEN | CoverEntityFeature.CLOSE
 
     @property
     def available(self) -> bool:

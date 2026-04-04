@@ -238,6 +238,66 @@ class TestStateMachine:
 
         assert client._gate_state == DerivedState.CLOSING
 
+    def test_relay_trigger_while_opening_sets_open(self, client: RemootioClient) -> None:
+        """RelayTrigger while opening (stop) should set open."""
+        from custom_components.remootio.models import Event
+
+        client._gate_state = DerivedState.OPENING
+        client._last_t100ms = 0
+
+        event = Event(cnt=1, type=EventType.RELAY_TRIGGER, state=None, t100ms=100)
+        client._update_state_from_event(event)
+
+        assert client._gate_state == GateState.OPEN
+
+    def test_relay_trigger_while_closing_sets_open(self, client: RemootioClient) -> None:
+        """RelayTrigger while closing (stop) should set open."""
+        from custom_components.remootio.models import Event
+
+        client._gate_state = DerivedState.CLOSING
+        client._last_t100ms = 0
+
+        event = Event(cnt=1, type=EventType.RELAY_TRIGGER, state=None, t100ms=100)
+        client._update_state_from_event(event)
+
+        assert client._gate_state == GateState.OPEN
+
+    def test_trigger_response_while_opening_sets_open(self, client: RemootioClient) -> None:
+        """TRIGGER response while opening (stop) should set open."""
+        from custom_components.remootio.models import ActionResponse
+
+        client._gate_state = DerivedState.OPENING
+
+        response = ActionResponse(
+            type=ActionType.TRIGGER,
+            id=1,
+            success=True,
+            state=GateState.OPEN,
+            relay_triggered=True,
+            error_code="",
+        )
+        client._update_state_from_response(response)
+
+        assert client._gate_state == GateState.OPEN
+
+    def test_trigger_response_while_closing_sets_open(self, client: RemootioClient) -> None:
+        """TRIGGER response while closing (stop) should set open."""
+        from custom_components.remootio.models import ActionResponse
+
+        client._gate_state = DerivedState.CLOSING
+
+        response = ActionResponse(
+            type=ActionType.TRIGGER,
+            id=1,
+            success=True,
+            state=GateState.OPEN,
+            relay_triggered=True,
+            error_code="",
+        )
+        client._update_state_from_response(response)
+
+        assert client._gate_state == GateState.OPEN
+
     def test_query_response_sets_state_directly(self, client: RemootioClient) -> None:
         """QUERY response should set state without transition inference."""
         from custom_components.remootio.models import ActionResponse

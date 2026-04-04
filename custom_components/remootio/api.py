@@ -386,12 +386,13 @@ class RemootioClient:
     def _update_state_from_response(self, response: ActionResponse) -> None:
         """Update gate state based on an action response."""
         if response.relay_triggered:
-            if response.type in (ActionType.OPEN, ActionType.TRIGGER):
-                if self._gate_state == GateState.CLOSED:
-                    self._gate_state = DerivedState.OPENING
-            if response.type in (ActionType.CLOSE, ActionType.TRIGGER):
-                if self._gate_state == GateState.OPEN:
-                    self._gate_state = DerivedState.CLOSING
+            if self._gate_state in (DerivedState.OPENING, DerivedState.CLOSING):
+                # Relay triggered while moving = stop. Sensor reads open (not fully closed).
+                self._gate_state = GateState.OPEN
+            elif self._gate_state == GateState.CLOSED:
+                self._gate_state = DerivedState.OPENING
+            elif self._gate_state == GateState.OPEN:
+                self._gate_state = DerivedState.CLOSING
             self._notify_listeners()
         elif response.state is not None:
             self._gate_state = response.state
@@ -407,7 +408,10 @@ class RemootioClient:
             if event.state is not None:
                 self._gate_state = event.state
         elif event.type == EventType.RELAY_TRIGGER:
-            if self._gate_state == GateState.CLOSED:
+            if self._gate_state in (DerivedState.OPENING, DerivedState.CLOSING):
+                # Relay triggered while moving = stop. Door is not closed.
+                self._gate_state = GateState.OPEN
+            elif self._gate_state == GateState.CLOSED:
                 self._gate_state = DerivedState.OPENING
             elif self._gate_state == GateState.OPEN:
                 self._gate_state = DerivedState.CLOSING

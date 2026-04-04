@@ -132,10 +132,30 @@ class TestCoverAttributes:
         """Cover should have garage device class."""
         assert cover._attr_device_class == CoverDeviceClass.GARAGE
 
-    def test_supported_features(self, cover: RemootioCover) -> None:
-        """Cover should support open, close, and stop."""
-        expected = CoverEntityFeature.OPEN | CoverEntityFeature.CLOSE | CoverEntityFeature.STOP
-        assert cover._attr_supported_features == expected
+    def test_supported_features_when_closed(self, cover: RemootioCover, coordinator: MagicMock) -> None:
+        """Closed cover should only support open."""
+        coordinator.gate_state = GateState.CLOSED
+        assert cover.supported_features == CoverEntityFeature.OPEN
+
+    def test_supported_features_when_open(self, cover: RemootioCover, coordinator: MagicMock) -> None:
+        """Open cover should only support close."""
+        coordinator.gate_state = GateState.OPEN
+        assert cover.supported_features == CoverEntityFeature.CLOSE
+
+    def test_supported_features_when_opening(self, cover: RemootioCover, coordinator: MagicMock) -> None:
+        """Opening cover should only support stop."""
+        coordinator.gate_state = DerivedState.OPENING
+        assert cover.supported_features == CoverEntityFeature.STOP
+
+    def test_supported_features_when_closing(self, cover: RemootioCover, coordinator: MagicMock) -> None:
+        """Closing cover should only support stop."""
+        coordinator.gate_state = DerivedState.CLOSING
+        assert cover.supported_features == CoverEntityFeature.STOP
+
+    def test_supported_features_when_unknown(self, cover: RemootioCover, coordinator: MagicMock) -> None:
+        """Unknown state should support open and close."""
+        coordinator.gate_state = DerivedState.UNKNOWN
+        assert cover.supported_features == CoverEntityFeature.OPEN | CoverEntityFeature.CLOSE
 
     def test_unique_id(self, cover: RemootioCover) -> None:
         """Unique ID should be the serial number."""
