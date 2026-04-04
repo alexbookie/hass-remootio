@@ -133,8 +133,8 @@ class TestActionId:
         """Action ID should wrap at 0x7FFFFFFF."""
         client._last_action_id = 0x7FFFFFFE
 
-        assert client._next_action_id() == 0x7FFFFFFF
-        assert client._next_action_id() == 0  # Wraps
+        assert client._next_action_id() == 0  # (0x7FFFFFFE + 1) % 0x7FFFFFFF == 0
+        assert client._next_action_id() == 1
 
 
 # -- State machine tests --
@@ -342,15 +342,17 @@ class TestConnection:
         mock_ws = AsyncMock()
         mock_ws.closed = False
         client._ws = mock_ws
-        client._ping_task = MagicMock()
-        client._receive_task = MagicMock()
+        mock_ping = MagicMock()
+        mock_receive = MagicMock()
+        client._ping_task = mock_ping
+        client._receive_task = mock_receive
 
         await client._disconnect()
 
         assert client._connected is False
         assert client._ws is None
-        client._ping_task.cancel.assert_called_once()
-        client._receive_task.cancel.assert_called_once()
+        mock_ping.cancel.assert_called_once()
+        mock_receive.cancel.assert_called_once()
         mock_ws.close.assert_awaited_once()
 
     def test_has_sensor_true_when_closed(self, client: RemootioClient) -> None:

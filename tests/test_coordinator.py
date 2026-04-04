@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -33,10 +33,9 @@ async def test_setup_entry_creates_coordinator(hass: HomeAssistant, mock_client:
     entry.async_on_unload = MagicMock()
     entry.async_create_background_task = MagicMock()
 
-    with patch("custom_components.remootio.hass.config_entries.async_forward_entry_setups", new_callable=AsyncMock):
-        # This test is mainly checking the coordinator wiring;
-        # full integration tests need the devcontainer
-        pass
+    # Verify the coordinator can be created with the mock client
+    coordinator = RemootioCoordinator(hass, entry, mock_client)
+    assert coordinator is not None
 
 
 async def test_coordinator_auth_failure_raises(

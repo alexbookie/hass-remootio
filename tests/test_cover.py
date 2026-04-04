@@ -139,7 +139,7 @@ class TestCoverAttributes:
 
     def test_unique_id(self, cover: RemootioCover) -> None:
         """Unique ID should be the serial number."""
-        assert cover._attr_unique_id == "ABC123"
+        assert cover._attr_unique_id == "ABC123_cover"
 
     def test_device_info(self, cover: RemootioCover) -> None:
         """Device info should include manufacturer and model."""

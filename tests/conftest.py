@@ -41,6 +41,7 @@ def mock_client(device_info: DeviceInfo) -> Generator[AsyncMock]:
         patch("custom_components.remootio.config_flow.RemootioClient") as mock_flow,
         patch("custom_components.remootio.RemootioClient") as mock_init,
         patch("custom_components.remootio.async_get_clientsession"),
+        patch("custom_components.remootio.config_flow.async_get_clientsession"),
     ):
         client = AsyncMock(spec=RemootioClient)
         client.connected = True

@@ -118,7 +118,14 @@ class RemootioCoordinator(DataUpdateCoordinator[None]):
             await self._async_connect()
             LOGGER.info("Reconnected to Remootio device")
             self.async_set_updated_data(None)
-        except (RemootioConnectionError, RemootioAuthError):
+        except RemootioAuthError as err:
+            LOGGER.error("Authentication failed during reconnect")
+            self.config_entry.async_start_reauth(self.hass)
+            raise ConfigEntryAuthFailed(
+                translation_domain=DOMAIN,
+                translation_key="auth_failed",
+            ) from err
+        except RemootioConnectionError:
             LOGGER.debug("Reconnection failed, will retry")
             await self._reconnect_debouncer.async_call()
 

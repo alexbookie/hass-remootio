@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from homeassistant.components.cover import CoverDeviceClass, CoverEntity, CoverEntityFeature
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -15,7 +16,7 @@ from .models import DerivedState, GateState
 
 
 async def async_setup_entry(
-    hass: Any,
+    hass: HomeAssistant,
     entry: RemootioConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
@@ -37,7 +38,7 @@ class RemootioCover(CoordinatorEntity[RemootioCoordinator], CoverEntity):
         device = coordinator.device_info_data
         if device is None:
             raise ValueError("Device info not available")
-        self._attr_unique_id = device.serial_number
+        self._attr_unique_id = f"{device.serial_number}_cover"
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, device.serial_number)},
             name=f"Remootio {device.serial_number}",

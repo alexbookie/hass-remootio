@@ -9,7 +9,7 @@ import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResult, OptionsFlow
 from homeassistant.const import CONF_HOST
 from homeassistant.core import callback
-from homeassistant.helpers.aiohttp_client import async_create_clientsession
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .api import RemootioClient
 from .const import CONF_API_AUTH_KEY, CONF_API_SECRET_KEY, DOMAIN, LOGGER
@@ -129,7 +129,7 @@ class RemootioConfigFlow(ConfigFlow, domain=DOMAIN):
 
     async def _validate_and_get_info(self, data: dict[str, Any]) -> DeviceInfo:
         """Connect to device, authenticate, get device info, disconnect."""
-        session = async_create_clientsession(self.hass)
+        session = async_get_clientsession(self.hass)
         client = RemootioClient(
             host=data[CONF_HOST],
             api_auth_key=data[CONF_API_AUTH_KEY],
@@ -154,7 +154,7 @@ class RemootioOptionsFlow(OptionsFlow):
 
         if user_input is not None:
             new_data = {**self.config_entry.data, **user_input}
-            session = async_create_clientsession(self.hass)
+            session = async_get_clientsession(self.hass)
             client = RemootioClient(
                 host=new_data[CONF_HOST],
                 api_auth_key=new_data[CONF_API_AUTH_KEY],
