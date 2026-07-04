@@ -434,3 +434,55 @@ class TestConnection:
 
         unregister()
         assert callback not in client._listeners
+
+
+class TestHandshakeFrameClassification:
+    """Test that handshake frame problems are classified correctly.
+
+    Transient/operational problems must be RemootioConnectionError (retried
+    silently); only genuine credential problems should be RemootioAuthError
+    (which escalates to a user-facing re-auth prompt).
+    """
+
+    def test_unexpected_frame_is_connection_error(self, client: RemootioClient) -> None:
+        """A wrong frame type is a protocol desync, not bad credentials."""
+        from custom_components.remootio.models import FrameType
+
+        with pytest.raises(RemootioConnectionError, match="Expected"):
+            client._raise_for_unexpected_frame({"type": "PONG"}, FrameType.ENCRYPTED)
+
+    @pytest.mark.parametrize(
+        "message",
+        [
+            "already authenticated",
+            "connection timeout",
+            "authentication timeout",
+            "json error",
+            "input error",
+            "internal error",
+        ],
+    )
+    def test_transient_error_frame_is_connection_error(self, client: RemootioClient, message: str) -> None:
+        """Operational ERROR frames must not trigger a re-auth."""
+        from custom_components.remootio.models import FrameType
+
+        with pytest.raises(RemootioConnectionError):
+            client._raise_for_unexpected_frame({"type": "ERROR", "errorMessage": message}, FrameType.ENCRYPTED)
+
+    def test_authentication_error_frame_is_auth_error(self, client: RemootioClient) -> None:
+        """A genuine 'authentication error' should surface as RemootioAuthError."""
+        from custom_components.remootio.models import FrameType
+
+        with pytest.raises(RemootioAuthError):
+            client._raise_for_unexpected_frame(
+                {"type": "ERROR", "errorMessage": "authentication error"}, FrameType.ENCRYPTED
+            )
+
+    def test_error_frame_is_case_insensitive(self, client: RemootioClient) -> None:
+        """Transient error matching should ignore case."""
+        from custom_components.remootio.models import FrameType
+
+        with pytest.raises(RemootioConnectionError):
+            client._raise_for_unexpected_frame(
+                {"type": "ERROR", "errorMessage": "Already Authenticated"}, FrameType.ENCRYPTED
+            )

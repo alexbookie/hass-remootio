@@ -8,11 +8,10 @@ from typing import TYPE_CHECKING
 
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
-from homeassistant.helpers.debounce import Debouncer
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from .api import RemootioClient
-from .const import DOMAIN, LOGGER, RECONNECT_COOLDOWN
+from .const import DOMAIN, LOGGER, MAX_AUTH_FAILURES_BEFORE_REAUTH, RECONNECT_BACKOFF_BASE, RECONNECT_BACKOFF_MAX
 from .models import DerivedState, DeviceInfo, GateState, RemootioAuthError, RemootioConnectionError
 
 if TYPE_CHECKING:
@@ -45,14 +44,9 @@ class RemootioCoordinator(DataUpdateCoordinator[None]):
         self.client = client
         self._connect_lock = asyncio.Lock()
         self._unregister_listener: Callable[[], None] | None = None
-        self._reconnect_debouncer = Debouncer(
-            hass,
-            LOGGER,
-            cooldown=RECONNECT_COOLDOWN,
-            immediate=False,
-            function=self._async_reconnect,
-        )
-        config_entry.async_on_unload(self._reconnect_debouncer.async_shutdown)
+        self._reconnect_task: asyncio.Task[None] | None = None
+        self._auth_failures = 0
+        config_entry.async_on_unload(self._cancel_reconnect)
 
     @property
     def connected(self) -> bool:
@@ -98,39 +92,76 @@ class RemootioCoordinator(DataUpdateCoordinator[None]):
     def _on_state_update(self) -> None:
         """Called by the WebSocket client when state changes or disconnects."""
         if not self.client.connected:
-            self.config_entry.async_create_background_task(
-                self.hass,
-                self._reconnect_debouncer.async_call(),
-                "remootio_reconnect",
-            )
+            self._schedule_reconnect()
         self.async_set_updated_data(None)
 
-    async def _async_reconnect(self) -> None:
-        """Attempt to reconnect after disconnect."""
-        if self.client.connected:
+    @callback
+    def _schedule_reconnect(self) -> None:
+        """Start the reconnect loop if one isn't already running."""
+        if self._reconnect_task is not None and not self._reconnect_task.done():
             return
+        self._reconnect_task = self.config_entry.async_create_background_task(
+            self.hass,
+            self._async_reconnect_loop(),
+            "remootio_reconnect",
+        )
 
-        if self._unregister_listener is not None:
-            self._unregister_listener()
-            self._unregister_listener = None
+    async def _async_reconnect_loop(self) -> None:
+        """Reconnect with exponential backoff until connected.
 
-        try:
-            await self._async_connect()
-            LOGGER.info("Reconnected to Remootio device")
-            self.async_set_updated_data(None)
-        except RemootioAuthError as err:
-            LOGGER.error("Authentication failed during reconnect")
-            self.config_entry.async_start_reauth(self.hass)
-            raise ConfigEntryAuthFailed(
-                translation_domain=DOMAIN,
-                translation_key="auth_failed",
-            ) from err
-        except RemootioConnectionError:
-            LOGGER.debug("Reconnection failed, will retry")
-            await self._reconnect_debouncer.async_call()
+        Transient failures (device busy, network blip, stale connection) are
+        retried silently. Only after several *consecutive* genuine auth failures
+        do we surface a re-auth prompt, so a single race doesn't nag the user to
+        re-enter credentials that never actually changed.
+        """
+        attempt = 0
+        while not self.client.connected:
+            attempt += 1
+
+            if self._unregister_listener is not None:
+                self._unregister_listener()
+                self._unregister_listener = None
+
+            try:
+                await self._async_connect()
+            except RemootioAuthError:
+                self._auth_failures += 1
+                if self._auth_failures >= MAX_AUTH_FAILURES_BEFORE_REAUTH:
+                    LOGGER.error(
+                        "Authentication failed %d times during reconnect; requesting re-authentication",
+                        self._auth_failures,
+                    )
+                    self.config_entry.async_start_reauth(self.hass)
+                    return
+                LOGGER.warning(
+                    "Authentication failed during reconnect (%d/%d), will retry",
+                    self._auth_failures,
+                    MAX_AUTH_FAILURES_BEFORE_REAUTH,
+                )
+            except RemootioConnectionError:
+                LOGGER.debug("Reconnect attempt %d failed, backing off", attempt)
+            else:
+                self._auth_failures = 0
+                LOGGER.info("Reconnected to Remootio device after %d attempt(s)", attempt)
+                self.async_set_updated_data(None)
+                return
+
+            delay = min(
+                RECONNECT_BACKOFF_BASE * 2 ** (attempt - 1),
+                RECONNECT_BACKOFF_MAX,
+            )
+            await asyncio.sleep(delay)
+
+    @callback
+    def _cancel_reconnect(self) -> None:
+        """Cancel any in-flight reconnect loop (called on unload)."""
+        if self._reconnect_task is not None:
+            self._reconnect_task.cancel()
+            self._reconnect_task = None
 
     async def async_shutdown(self) -> None:
         """Disconnect on unload."""
+        self._cancel_reconnect()
         if self._unregister_listener is not None:
             self._unregister_listener()
             self._unregister_listener = None
