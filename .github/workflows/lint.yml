@@ -52,8 +52,18 @@ jobs:
             ha-venv-${{ runner.os }}-py313-ha${{ steps.ha_version.outputs.HA_VERSION }}-
             ha-venv-${{ runner.os }}-py313-
 
-      - name: Install requirements
-        run: script/setup/bootstrap
+      - name: Install lint tools
+        run: |
+          # The Ruff job only needs the linters, not a full Home Assistant
+          # install. Installing HA's complete test stack (script/setup/bootstrap)
+          # transitively pins a yanked mypy-dev alpha that no longer resolves on
+          # PyPI, which broke this job. Install just HA's pinned pre-commit tools
+          # (ruff/codespell/yamllint) for the version declared in hacs.json.
+          uv venv .local/ha-venv
+          curl -fsSL "https://raw.githubusercontent.com/home-assistant/core/${HA_VERSION}/requirements_test_pre_commit.txt" -o /tmp/requirements_test_pre_commit.txt
+          uv pip install --python .local/ha-venv/bin/python --requirement /tmp/requirements_test_pre_commit.txt
+        env:
+          HA_VERSION: ${{ steps.ha_version.outputs.HA_VERSION }}
 
       - name: Lint check
         run: script/lint-check
