@@ -156,10 +156,8 @@ class RemootioClient:
     async def _connect(self) -> None:
         """Establish WebSocket connection and authenticate."""
         try:
-            self._ws = await self._session.ws_connect(
-                f"ws://{self._host}:{WS_PORT}/",
-                timeout=aiohttp.ClientWSTimeout(ws_close=CONNECT_TIMEOUT),
-            )
+            async with asyncio.timeout(CONNECT_TIMEOUT):
+                self._ws = await self._session.ws_connect(f"ws://{self._host}:{WS_PORT}/")
         except (aiohttp.ClientError, OSError, TimeoutError) as err:
             raise RemootioConnectionError(f"Cannot connect to {self._host}:{WS_PORT}") from err
 
