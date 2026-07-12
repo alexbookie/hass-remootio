@@ -289,6 +289,7 @@ Supports Remootio 1 and Remootio 2 devices.
 - [x] Config flow (host, API key, API secret)
 - [x] Coordinator (WebSocket push-based)
 - [x] Cover platform (garage door)
-- [ ] Tests (written, not yet run in devcontainer)
+- [x] Tests (passing in devcontainer)
 - [x] Options flow for credential updates
+- [x] Released v0.1.1 on HACS
 - [ ] Diagnostics support
