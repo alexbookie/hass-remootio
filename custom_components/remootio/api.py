@@ -33,6 +33,25 @@ from .models import (
 
 _AES_BLOCK_BITS = 128
 
+# Max stray push events to skip while waiting for SERVER_HELLO during handshake.
+_MAX_HANDSHAKE_SKIPS = 5
+
+# Connection-level ERROR messages that indicate a transient/operational problem
+# rather than bad credentials. These should trigger a silent retry, NOT a
+# user-facing re-authentication prompt. Anything else in an ERROR frame during
+# the handshake (notably "authentication error") is treated as a credential
+# problem. See the "Connection-Level Error Messages" table in CLAUDE.md.
+_TRANSIENT_ERROR_MESSAGES = frozenset(
+    {
+        "already authenticated",
+        "connection timeout",
+        "authentication timeout",
+        "json error",
+        "input error",
+        "internal error",
+    }
+)
+
 
 class RemootioClient:
     """Async WebSocket client for Remootio garage door openers."""
@@ -149,9 +168,14 @@ class RemootioClient:
         except TimeoutError as err:
             await self._disconnect()
             raise RemootioConnectionError("Authentication timed out") from err
-        except RemootioAuthError:
+        except (RemootioAuthError, RemootioConnectionError):
             await self._disconnect()
             raise
+        except Exception as err:
+            # Never let an unexpected error escape uncaught — it would kill the
+            # reconnect background task silently. Treat it as retryable.
+            await self._disconnect()
+            raise RemootioConnectionError("Unexpected error during handshake") from err
 
         self._connected = True
         self._receive_task = asyncio.create_task(self._receive_loop())
@@ -197,17 +221,25 @@ class RemootioClient:
         # Step 2: Receive CHALLENGE
         msg = await self._receive_frame()
         if msg.get("type") != FrameType.ENCRYPTED:
-            raise RemootioAuthError(f"Expected ENCRYPTED frame, got {msg.get('type')}")
+            self._raise_for_unexpected_frame(msg, FrameType.ENCRYPTED)
 
+        # A MAC failure here means the API Auth Key is wrong (genuine auth error).
         self._verify_mac(msg["data"], msg["mac"])
-        challenge = self._decrypt(
-            msg["data"]["iv"],
-            msg["data"]["payload"],
-            self._api_secret_key_bytes,
-        )
 
-        session_key_b64 = challenge["challenge"]["sessionKey"]
-        initial_action_id = challenge["challenge"]["initialActionId"]
+        # A decrypt/parse failure here means the API Secret Key is wrong. Convert
+        # it to a RemootioAuthError rather than letting a raw ValueError/KeyError
+        # escape uncaught.
+        try:
+            challenge = self._decrypt(
+                msg["data"]["iv"],
+                msg["data"]["payload"],
+                self._api_secret_key_bytes,
+            )
+            session_key_b64 = challenge["challenge"]["sessionKey"]
+            initial_action_id = challenge["challenge"]["initialActionId"]
+        except (ValueError, KeyError, TypeError) as err:
+            raise RemootioAuthError("Failed to decrypt challenge (bad API Secret Key)") from err
+
         self._session_data = SessionData(
             session_key=base64.b64decode(session_key_b64),
             initial_action_id=initial_action_id,
@@ -222,7 +254,7 @@ class RemootioClient:
         # Step 4: Receive QUERY response
         msg = await self._receive_frame()
         if msg.get("type") != FrameType.ENCRYPTED:
-            raise RemootioAuthError(f"Expected ENCRYPTED response, got {msg.get('type')}")
+            self._raise_for_unexpected_frame(msg, FrameType.ENCRYPTED)
         self._verify_mac(msg["data"], msg["mac"])
         response_data = self._decrypt(
             msg["data"]["iv"],
@@ -241,15 +273,39 @@ class RemootioClient:
         # Step 5: Send HELLO
         await ws.send_json({"type": FrameType.HELLO})
 
-        # Step 6: Receive SERVER_HELLO
-        msg = await self._receive_frame()
+        # Step 6: Receive SERVER_HELLO. The device may push an encrypted event
+        # (e.g. StateChange) in between, so skip stray ENCRYPTED frames rather
+        # than mistaking the desync for an auth failure.
+        for _ in range(_MAX_HANDSHAKE_SKIPS):
+            msg = await self._receive_frame()
+            if msg.get("type") == FrameType.ENCRYPTED:
+                continue
+            break
         if msg.get("type") != FrameType.SERVER_HELLO:
-            raise RemootioAuthError(f"Expected SERVER_HELLO, got {msg.get('type')}")
+            self._raise_for_unexpected_frame(msg, FrameType.SERVER_HELLO)
         self._device_info = DeviceInfo(
             serial_number=msg["serialNumber"],
             api_version=msg["apiVersion"],
             remootio_version=msg["remootioVersion"],
         )
+
+    def _raise_for_unexpected_frame(self, msg: dict[str, Any], expected: FrameType) -> None:
+        """Raise the right error for a frame that isn't the expected type.
+
+        Distinguishes genuine credential failures (which warrant a re-auth) from
+        transient/operational problems (which should just be retried silently).
+        """
+        frame_type = msg.get("type")
+        if frame_type == FrameType.ERROR:
+            error_message = str(msg.get("errorMessage", "")).lower()
+            if error_message in _TRANSIENT_ERROR_MESSAGES:
+                raise RemootioConnectionError(f"Device reported transient error during handshake: {error_message}")
+            # "authentication error" (bad keys or bad action ID) and anything
+            # unrecognised is treated as an auth problem.
+            raise RemootioAuthError(f"Device reported error during handshake: {error_message or 'unknown'}")
+        # An out-of-order / unexpected frame is a protocol desync, not proof of
+        # bad credentials — surface it as retryable so we don't force a re-auth.
+        raise RemootioConnectionError(f"Expected {expected} frame, got {frame_type}")
 
     async def _receive_frame(self) -> dict[str, Any]:
         """Receive and parse a single WebSocket JSON frame."""
