@@ -9,7 +9,7 @@ Supports Remootio 1 and Remootio 2 devices.
 - Protocol: WebSocket (local network only, no cloud relay)
 - Connection URL: `ws://<host>:8080/`
 - Auth: API Auth Key (64-char hex) + API Secret Key (64-char hex), obtained from Remootio mobile app
-- Encryption: AES-128-CBC with PKCS7 padding + HMAC-SHA256 for MAC verification
+- Encryption: AES-256-CBC with PKCS7 padding + HMAC-SHA256 for MAC verification
 - String encoding: Latin-1
 - Max concurrent connections: 1
 - API versions: v1 (fw 1.00-2.20), v2 (fw 2.21+), v3 (fw 2.24+)
@@ -291,5 +291,5 @@ Supports Remootio 1 and Remootio 2 devices.
 - [x] Cover platform (garage door)
 - [x] Tests (passing in devcontainer)
 - [x] Options flow for credential updates
-- [x] Released v0.1.1 on HACS
+- [x] Released v0.2.0 on HACS (spurious re-auth fix, exponential backoff reconnect)
 - [ ] Diagnostics support

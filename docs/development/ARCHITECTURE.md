@@ -39,8 +39,9 @@ Push-based `DataUpdateCoordinator[None]` — no polling interval.
 
 - Entities are notified via `async_set_updated_data(None)` when the WebSocket client fires callbacks
 - Entities read state from `coordinator.client.gate_state`, not `coordinator.data`
-- Handles reconnection via `Debouncer` (5s cooldown) on disconnect
-- Auth failures during reconnect trigger reauth flow
+- Handles reconnection via a background loop with exponential backoff (5s doubling up to 120s)
+- Transient handshake/connection errors are retried; only consecutive genuine auth
+  failures (3 in a row) escalate to the reauth flow
 
 Key class: `RemootioCoordinator`
 
